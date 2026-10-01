@@ -360,7 +360,7 @@ shipping a clear correction.
 ## Reproduce
 
 ```bash
-git clone https://github.com/Shardss/ROCm-backalley-release
+git clone https://github.com/Tudor-projs/ROCm-backalley-release
 cd ROCm-backalley-release
 
 # 1. get llama.cpp at the frozen base
