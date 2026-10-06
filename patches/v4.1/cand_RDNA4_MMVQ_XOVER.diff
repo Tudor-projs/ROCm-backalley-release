@@ -1,0 +1,24 @@
+diff --git a/ggml/src/ggml-cuda/mmvq.cu b/ggml/src/ggml-cuda/mmvq.cu
+index 122d8e4cc..4cd2bcf14 100644
+--- a/ggml/src/ggml-cuda/mmvq.cu
++++ b/ggml/src/ggml-cuda/mmvq.cu
+@@ -468,6 +468,19 @@ bool ggml_cuda_should_use_mmvq(enum ggml_type type, int cc, int64_t ne11) {
+                 return ne11 <= MMVQ_MAX_BATCH_SIZE;
+         }
+     }
++    // RDNA4: MMQ beats MMVQ for K-quants once ne11 reaches 5. Ada/Blackwell/GB10/Orin/CDNA1/CDNA2
++    // all carry a measured table here; RDNA fell through to the permissive default.
++    // Re-measured on b11325 (2026-10-02, batched decode, Qwen3-4B Q4_K_M): at ne11=4 MMVQ is now 12%
++    // faster than MMQ (417 vs 372 t/s); from ne11=5 MMQ wins (459 vs 449 t/s, 717 vs 515 at ne11=8).
++    if (GGML_CUDA_CC_IS_RDNA4(cc)) {
++        switch (type) {
++            case GGML_TYPE_Q4_K:
++            case GGML_TYPE_Q6_K:
++                return ne11 <= 4;
++            default:
++                break;
++        }
++    }
+     return ne11 <= MMVQ_MAX_BATCH_SIZE;
+ }
+ 

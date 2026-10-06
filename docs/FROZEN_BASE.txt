@@ -1,4 +1,4 @@
-llama.cpp frozen base for rocm-backalley v1
+llama.cpp frozen base for rocm-backalley v1-v4
 
 commit : 73a43d1f69345aee8bb186ef4b3172cef892f2e5
 date   : 2026-09-06 11:45 UTC
@@ -7,3 +7,14 @@ subject: cuda: fixes races in mmid and mmf (#28475)
 
 Every measurement in this repository is against this commit.
 It does not move until a new release is cut.
+
+----------------------------------------------------------------
+
+llama.cpp base for rocm-backalley v4.1
+
+commit : def4d406ae2c2f39573120d68730fbb7760b24bf
+date   : 2026-10-01 08:10 UTC
+tag    : b11325
+subject: jinja : skip copying loop scope unless a loop filter needs it (#29776)
+
+v4.1 is measured against this commit. v1-v4 measurements stay against 73a43d1 above.

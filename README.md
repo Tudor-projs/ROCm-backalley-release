@@ -8,39 +8,30 @@ This project does that measuring, keeps what works, and publishes both the evide
 
 ---
 
-## Latest release: v4
+## Latest release: v4.1
 
-**v4 is a long-context release.** Flash attention on this card was spilling registers inside the
-loop that walks the KV cache, so the cost grew with every token of context. The compiler reports it
-directly:
+**v4.1 is the v4 stack moved onto current llama.cpp**: b11325 (`def4d406a`, 1 Oct) instead of
+`73a43d1` (6 Sep), plus a fix for an upstream flash-attention bug. Fifteen patches instead of
+eighteen: upstream merged two, and two more are no longer needed.
 
-| kernel | v3 | v4 |
+Writing speed, one chat:
+
+| model | v4.1 vs v4 | v4.1 vs llama.cpp b11325 |
 |---|---|---|
-| head_dim 128 — most models | 210 spills | **37** |
-| head_dim 256 — Qwen3.8-27B | *kernel disabled on AMD* | **149** |
+| Qwen3.8-27B IQ4_XS | **+11.8%** | +2.4% |
+| Qwen3-Coder-30B-A3B | **+7.5%** | +12.7% |
+| Qwen3-4B Q4_K_M | −0.2% | **+18.5%** |
+| OLMoE-1B-7B (MoE) | −0.6% | **+31.2%** |
+| Qwen3-4B Q1_0 | −0.5% | **+82.0%** |
 
-Prefill, measured from the packaged binaries against the shipped v3:
+**v4.1 is never slower than v4** beyond run-to-run noise, it is faster where upstream improved, and
+across 11 models the stack is still worth +2% to +82% over plain current upstream. v4's long-context
+fix is still needed upstream: b11325's head-size-128 attention kernel spills 209 registers, v4.1's 33.
 
-| model | at 8k context | at 16k context |
-|---|---|---|
-| Qwen3-4B Q4_K_M | **+14.2%** | **+22.5%** |
-| Qwen3-8B Q4_K_M | **+9.0%** | — |
-| Qwen3.8-27B IQ4_XS | **+13.3%** | **+20.3%** |
+**#28102 — the patch v2 dropped — is now merged upstream, bug included.** On gfx1201 it still breaks
+head-size-192/128 flash attention (DeepSeek-style MLA) in 4–5 of 12 test runs. v4.1 fixes it: 0 of 12.
 
-Plus **+6.0% decode on gemma-26B IQ4_XS**, from extending #23685's packed activation layout to the
-IQ types it never covered.
-
-**The gain grows with context depth and is near zero on an empty cache** — that is the signature of
-the bug, which lived inside the KV loop. If you run short prompts, v4 gives you almost nothing.
-
-**One caveat, stated up front: v4 is not bit-identical to upstream and v3 was.** Perplexity moves
-+0.115% and ~2.2% of tokens pick a different top token than the base. That is the flash-attention
-changes altering accumulation order. The quality gate passes. If you need output identical to
-upstream, stay on v3.
-
-Full detail — the retune that makes PR #26419 worth anything, all measurements, the quality gate,
-and the VRAM arithmetic that decides how much context actually fits:
-**[RELEASE_NOTES_v4.md](RELEASE_NOTES_v4.md)**
+Full detail: **[RELEASE_NOTES_v4.1.md](RELEASE_NOTES_v4.1.md)**
 
 ---
 
@@ -77,7 +68,8 @@ The human owner of this repository is responsible for its contents.
 | CPU / RAM | Ryzen 9 9900X, 128 GB DDR5 |
 | OS | Windows 11 |
 | Toolchain | ROCm HIP SDK 7.2, MSVC 14.44 (VS2022) |
-| **Frozen base** | llama.cpp **`73a43d1`** — tagged `backalley-base`, never moves |
+| **Frozen base, v1–v4** | llama.cpp **`73a43d1`** — tagged `backalley-base`, never moves |
+| **Base, v4.1** | llama.cpp **b11325** (`def4d406a`, 2026-10-01) |
 
 > MSVC 14.51 (VS2026) **fails** to build ROCm 7.2 HIP with `__clang_cuda_math_forward_declares.h` errors. Use VS2022. See upstream PR #24929.
 
@@ -355,6 +347,40 @@ shipping a clear correction.
 
 ---
 
+## Release v4
+
+**v4 is a long-context release.** Flash attention on this card was spilling registers inside the
+loop that walks the KV cache, so the cost grew with every token of context. The compiler reports it
+directly:
+
+| kernel | v3 | v4 |
+|---|---|---|
+| head_dim 128 — most models | 210 spills | **37** |
+| head_dim 256 — Qwen3.8-27B | *kernel disabled on AMD* | **149** |
+
+Prefill, measured from the packaged binaries against the shipped v3:
+
+| model | at 8k context | at 16k context |
+|---|---|---|
+| Qwen3-4B Q4_K_M | **+14.2%** | **+22.5%** |
+| Qwen3-8B Q4_K_M | **+9.0%** | — |
+| Qwen3.8-27B IQ4_XS | **+13.3%** | **+20.3%** |
+
+Plus **+6.0% decode on gemma-26B IQ4_XS**, from extending #23685's packed activation layout to the
+IQ types it never covered.
+
+**The gain grows with context depth and is near zero on an empty cache** — that is the signature of
+the bug, which lived inside the KV loop. If you run short prompts, v4 gives you almost nothing.
+
+**One caveat, stated up front: v4 is not bit-identical to upstream and v3 was.** Perplexity moves
++0.115% and ~2.2% of tokens pick a different top token than the base. That is the flash-attention
+changes altering accumulation order. The quality gate passes. If you need output identical to
+upstream, stay on v3.
+
+Full detail — the retune that makes PR #26419 worth anything, all measurements, the quality gate,
+and the VRAM arithmetic that decides how much context actually fits:
+**[RELEASE_NOTES_v4.md](RELEASE_NOTES_v4.md)**
+
 ---
 
 ## Reproduce
@@ -363,15 +389,15 @@ shipping a clear correction.
 git clone https://github.com/Tudor-projs/ROCm-backalley-release
 cd ROCm-backalley-release
 
-# 1. get llama.cpp at the frozen base
+# 1. get llama.cpp at the v4.1 base (b11325)
 git clone https://github.com/ggml-org/llama.cpp
-cd llama.cpp && git checkout 73a43d1 && git tag backalley-base
+cd llama.cpp && git checkout def4d406ae2c2f39573120d68730fbb7760b24bf
 
-# 2. apply the stack, in this order (v4 - 18 patches)
+# 2. apply the stack, in this order (v4.1 - 15 patches)
 for p in stack_26301 stack_24386 stack_25940 rel_25206 rel_27248 rel_26504 rel_28477 \
-         rel_28079 rel_27269_new pr28552 pr23685_ported cand_RDNA4_MMVQ_XOVER pr28398 \
-         fix_Q6K_always_mmq v4_fa_spill v4_packed_q8_1_layout pr26419 v4_hd256_retune; do
-  git apply ../patches/$p.diff || { echo "FAILED: $p"; break; }
+         rel_27269_new pr23685_ported cand_RDNA4_MMVQ_XOVER pr28398 fix_Q6K_always_mmq \
+         v4_fa_spill v4_packed_q8_1_layout fix_amd_wmma_dkq_ne_dv; do
+  git apply ../patches/v4.1/$p.diff || { echo "FAILED: $p"; break; }
 done
 
 # 3. build (ROCm 7.2 HIP SDK + MSVC 14.44/VS2022)
@@ -379,7 +405,7 @@ cmake -S . -B build-hip -G Ninja -DGGML_HIP=ON -DAMDGPU_TARGETS=gfx1201 \
   -DCMAKE_C_COMPILER="C:/Program Files/AMD/ROCm/7.2/bin/clang.exe" \
   -DCMAKE_CXX_COMPILER="C:/Program Files/AMD/ROCm/7.2/bin/clang++.exe" \
   -DCMAKE_BUILD_TYPE=Release -DLLAMA_OPENSSL=OFF -DLLAMA_CURL=OFF
-cmake --build build-hip --target llama-bench
+cmake --build build-hip --target llama-server llama-bench
 
 # 4. run - note the env vars, without them you lose ~1/3 of the decode gain
 set GGML_CUDA_DQ_MMV=1
@@ -389,6 +415,11 @@ build-hip\bin\llama-bench.exe -m <model.gguf> -ngl 99 -p 512 -n 128 -r 3
 ```
 
 Or **download the prebuilt archive from Releases** — self-contained, no ROCm install required.
+
+To build **v4** instead: check out `73a43d1` and apply the 18 patches in `patches/` in this order:
+`stack_26301 stack_24386 stack_25940 rel_25206 rel_27248 rel_26504 rel_28477 rel_28079 rel_27269_new
+pr28552 pr23685_ported cand_RDNA4_MMVQ_XOVER pr28398 fix_Q6K_always_mmq v4_fa_spill
+v4_packed_q8_1_layout pr26419 v4_hd256_retune`.
 
 ### Re-running the validation yourself
 
@@ -400,16 +431,18 @@ Or **download the prebuilt archive from Releases** — self-contained, no ROCm i
 | `runner.ps1` | walk a queue of PRs unattended, recording verdicts |
 | `stack.ps1` | cumulative safe merge, measuring after each addition |
 | `goldengate.ps1` | the quality gate (ops / perplexity / KL divergence / winogrande) |
+| `gate3.ps1` | the release gate v3, v4 and v4.1 shipped through: goldengate's checks plus a repeated batched sweep (npl 1–8), failing any cell below −5% |
+| `opscheck.ps1` | repeated `test-backend-ops` runs, read by exit code, verdict line and failing-case list |
 
 ---
 
 ## Database
 
-`database.csv` — every candidate, its verdict, the numbers, and the reasoning. 101 entries.
+`database.csv` — every candidate, its verdict, the numbers, and the reasoning. 102 entries.
 
 | status | count |
 |---|---|
-| VALIDATED | 18 |
+| VALIDATED | 17 |
 | NO_EFFECT | 13 |
 | NOT_APPLICABLE | 12 |
 | NO_REGRESSION_ONLY | 6 |
@@ -417,10 +450,11 @@ Or **download the prebuilt archive from Releases** — self-contained, no ROCm i
 | RESOLVED | 6 |
 | SHIPPED | 5 |
 | COMPLETE | 4 |
+| SUPERSEDED_BY_UPSTREAM | 3 |
 | SUPERSEDED / CORRECTNESS_ONLY / DEFERRED / CONFIRM_ONLY / NEGLIGIBLE / PASSED / FIXED | 2–3 each |
-| 17 further one-off verdicts | 1 each |
+| 16 further one-off verdicts | 1 each |
 
-**Hit rate: roughly 1 in 5.** Of 101 candidates examined, 18 are in the v4 stack. Several were initially rejected by a mechanical `git apply` check and only recovered by reading the code — including #23685, which needed a hand port, and #27269, which needed a one-line HIP fix the upstream PR omits.
+**Hit rate: roughly 1 in 5.** Of 102 entries, 15 are in the v4.1 stack (v4 had 18). Several were initially rejected by a mechanical `git apply` check and only recovered by reading the code — including #23685, which needed a hand port, and #27269, which needed a one-line HIP fix the upstream PR omits.
 
 ---
 
@@ -429,7 +463,7 @@ Or **download the prebuilt archive from Releases** — self-contained, no ROCm i
 - **One card, one OS, one driver.** RX 9070 (gfx1201), Windows 11, Adrenalin 32.0.31041.1004, ROCm 7.2. Untested on 9070 XT, 9060, R9700, or Linux.
 - **The prebuilt archive is gfx1201-only.** Tensile libraries are filtered to gfx1201 to keep it at 370 MB; it will not work on other AMD architectures.
 - **Five models, 32-chunk perplexity, 150 winogrande tasks.** Enough to catch a broken model; not an exhaustive quality suite.
-- **Eighteen patches, not a hundred.** Out of 100 candidates examined.
+- **Fifteen patches in v4.1 (eighteen in v4), not a hundred.** Out of 100+ candidates examined.
 - Upstream PR numbers, titles and author claims are reproduced in good faith; where our numbers disagree with an author's, both are shown.
 
 ## Credit

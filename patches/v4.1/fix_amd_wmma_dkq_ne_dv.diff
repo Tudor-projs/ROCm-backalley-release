@@ -1,0 +1,16 @@
+diff --git a/ggml/src/ggml-cuda/fattn.cu b/ggml/src/ggml-cuda/fattn.cu
+index 156b93c00..58071bac2 100644
+--- a/ggml/src/ggml-cuda/fattn.cu
++++ b/ggml/src/ggml-cuda/fattn.cu
+@@ -697,7 +697,11 @@ static best_fattn_kernel ggml_cuda_get_best_fattn_kernel(const int device, const
+     }
+ 
+     // AMD WMMA is faster than the tile kernel if the wide tiles with high arithmetic intensity can be utilized.
++    // backalley: head sizes with DKQ != DV (192/128, DeepSeek-style) stay on the tile kernel. On gfx1201 the
++    // MMA kernel gets them wrong since #28102 widened this check from <= 128 to <= 256: FLASH_ATTN_EXT
++    // hsk=192/hsv=128 fails at 13x-64x the error tolerance (DKQ == DV head sizes are unaffected).
+     if ((amd_wmma_available(cc) && gqa_opt_applies && Q->ne[0] <= 256) && Q->ne[0] != 40 && Q->ne[0] != 72 &&
++            (Q->ne[0] <= 128 || V->ne[0] == Q->ne[0]) &&
+             Q->ne[1] * gqa_ratio_eff > (Q->ne[0] <= 128 ? 8 : 16)) {
+         return BEST_FATTN_KERNEL_MMA_F16;
+     }

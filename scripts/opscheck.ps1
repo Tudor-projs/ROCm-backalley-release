@@ -35,8 +35,8 @@ function Invoke-OpsCheck {
         elseif ($ln -match "^\s*\S+\(.*?\):\s*NOT SUPPORTED") { $ns++ }
     }
 
-    # authoritative verdict line, e.g. "Backend ROCm0: FAIL"
-    $verdict = ($lines | Where-Object { $_ -match '^Backend \S+:\s*(OK|FAIL)' } | Select-Object -First 1)
+    # authoritative verdict line, e.g. "Backend ROCm0: FAIL" (newer builds indent it)
+    $verdict = ($lines | Where-Object { $_ -match '^\s*Backend \S+:\s*(OK|FAIL)' } | Select-Object -First 1)
     $verdict = ("" + $verdict).Trim()
 
     # exact failing cases, taken from the explicit marker rather than guessed at
