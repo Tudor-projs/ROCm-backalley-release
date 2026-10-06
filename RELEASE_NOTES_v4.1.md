@@ -210,6 +210,11 @@ Every number above was measured with these set.
 
 ## Reproduce
 
+> **AMD only.** These patches are for HIP (ROCm) builds. Built for NVIDIA (CUDA), the patched tree
+> aborts in `test-backend-ops` with `CUDA error: misaligned address` in a matrix-multiply kernel
+> (RTX 5060 Ti, CUDA 13.3, 6 Oct). Plain upstream b11325 passes the same test (16,875 / 16,875).
+> For an NVIDIA card, use upstream llama.cpp.
+
 ```bash
 git clone https://github.com/Tudor-projs/ROCm-backalley-release
 cd ROCm-backalley-release

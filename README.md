@@ -385,6 +385,9 @@ and the VRAM arithmetic that decides how much context actually fits:
 
 ## Reproduce
 
+**The v4.1 patches are for AMD (HIP) builds only.** Built for NVIDIA (CUDA) they crash a matrix-multiply
+kernel (`misaligned address`); plain upstream b11325 passes the same test. For NVIDIA, use upstream llama.cpp.
+
 ```bash
 git clone https://github.com/Tudor-projs/ROCm-backalley-release
 cd ROCm-backalley-release
